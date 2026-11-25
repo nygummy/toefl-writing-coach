@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>토플 라이팅 AI 첨삭 | 2026 개정</title>
+  <meta
+    name="description"
+    content="2026 개정 토플(TOEFL) 라이팅 Write an Email & Academic Discussion 무료 AI 첨삭 도구"
+  />
+  <!-- 트위터(X) 및 SNS 공유용 메타 태그 -->
+  <meta property="og:title" content="토플 라이팅 AI 첨삭 (2026 개정)" />
+  <meta
+    property="og:description"
+    content="Write an Email · Academic Discussion 답안을 입력하면 예상 점수와 문장별 첨삭을 바로 받아볼 수 있어요."
+  />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary" />
+
+  <!-- 가독성 좋은 한글 웹폰트 (Pretendard) -->
+  <link
+    rel="stylesheet"
+    as="style"
+    crossorigin
+    href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css"
+  />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <main class="container">
+    <!-- 상단 헤더 -->
+    <header class="header">
+      <div class="header-badge">2026 개정 TOEFL</div>
+      <h1 class="title">토플 라이팅 AI 첨삭</h1>
+      <p class="subtitle">
+        답안을 입력하면 예상 점수, 문장별 수정, 업그레이드 답안까지 한 번에 정리해 드려요.
+      </p>
+    </header>
+
+    <!-- 1. 과제 선택 탭 -->
+    <nav class="tabs" role="tablist" aria-label="토플 라이팅 과제 선택">
+      <button
+        type="button"
+        class="tab-btn active"
+        role="tab"
+        id="tab-email"
+        aria-selected="true"
+        data-task="email"
+      >
+        Write an Email
+      </button>
+      <button
+        type="button"
+        class="tab-btn"
+        role="tab"
+        id="tab-discussion"
+        aria-selected="false"
+        data-task="discussion"
+      >
+        Academic Discussion
+      </button>
+    </nav>
+
+    <!-- 2. 입력 영역 -->
+    <section class="editor-section" aria-label="문제 및 답안 입력">
+      <div class="field-group">
+        <div class="field-header">
+          <label for="prompt-input" class="field-label">문제 지문</label>
+          <button type="button" id="sample-btn" class="text-btn">
+            예시 불러오기
+          </button>
+        </div>
+        <textarea
+          id="prompt-input"
+          class="textarea textarea-prompt"
+          rows="4"
+          placeholder="토플 문제 지문을 붙여넣어 주세요."
+        ></textarea>
+      </div>
+
+      <div class="field-group">
+        <div class="field-header">
+          <label for="essay-input" class="field-label">내 답안</label>
+          <span id="word-count-badge" class="word-count">0단어</span>
+        </div>
+        <textarea
+          id="essay-input"
+          class="textarea textarea-essay"
+          rows="8"
+          placeholder="영어로 작성한 답안을 입력해 주세요."
+        ></textarea>
+
+        <!-- Academic Discussion 전용: 100단어 기준선 표시 -->
+        <div id="word-guide" class="word-guide hidden" aria-live="polite">
+          <div class="word-guide-top">
+            <span class="word-guide-label">권장 분량 기준선 (100단어)</span>
+            <span id="word-guide-status" class="word-guide-status">100단어까지 100단어 남음</span>
+          </div>
+          <div class="progress-track">
+            <div id="word-progress-bar" class="progress-fill" style="width: 0%"></div>
+            <div class="progress-threshold" title="100단어 기준선"></div>
+          </div>
+        </div>
+
+        <!-- Write an Email 전용 안내 -->
+        <p id="email-guide" class="helper-text">
+          수신자에게 맞는 격식(톤)과 지문의 요구사항을 빠짐없이 담았는지 확인해 보세요.
+        </p>
+      </div>
+
+      <!-- 에러 메시지 표시 영역 -->
+      <div id="error-box" class="error-box hidden" role="alert"></div>
+
+      <!-- 3. 첨삭받기 버튼 -->
+      <button type="button" id="submit-btn" class="primary-btn">
+        <span class="btn-text">첨삭받기</span>
+        <span class="spinner hidden" aria-hidden="true"></span>
+      </button>
+
+      <p id="usage-info" class="usage-info">
+        IP 기준 하루 10회까지 무료로 이용할 수 있어요.
+      </p>
+    </section>
+
+    <!-- 4. 결과 카드 -->
+    <section
+      id="result-section"
+      class="result-section hidden"
+      aria-label="AI 첨삭 결과"
+    >
+      <div class="result-card">
+        <!-- 예상 점수 헤더 -->
+        <div class="result-top">
+          <div class="score-block">
+            <span class="score-caption">참고용 AI 예상 점수</span>
+            <div class="score-row">
+              <strong id="score-value" class="score-number">-</strong>
+              <span class="score-max">/ 6</span>
+            </div>
+            <div id="score-bars" class="score-bars" aria-hidden="true"></div>
+          </div>
+
+          <button type="button" id="copy-btn" class="secondary-btn">
+            결과 복사
+          </button>
+        </div>
+
+        <hr class="divider" />
+
+        <!-- 잘한 점 / 고칠 점 -->
+        <div class="feedback-grid">
+          <div class="feedback-block">
+            <h2 class="section-heading">잘한 점</h2>
+            <ul id="strengths-list" class="bullet-list"></ul>
+          </div>
+
+          <div class="feedback-block">
+            <h2 class="section-heading">고칠 점</h2>
+            <ul id="improvements-list" class="bullet-list"></ul>
+          </div>
+        </div>
+
+        <hr class="divider" />
+
+        <!-- 문장별 수정 -->
+        <div class="feedback-block">
+          <h2 class="section-heading">문장별 수정</h2>
+          <p class="section-desc">
+            바뀐 부분은 하이라이트로 표시돼요.
+          </p>
+          <div id="corrections-list" class="corrections-list"></div>
+        </div>
+
+        <hr class="divider" />
+
+        <!-- 업그레이드 답안 -->
+        <div class="feedback-block">
+          <h2 class="section-heading">업그레이드 답안</h2>
+          <p class="section-desc">
+            원래 답안의 내용과 아이디어는 유지하면서 자연스럽게 다듬었어요.
+          </p>
+          <div id="upgraded-essay" class="upgraded-box"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. 하단 안내 -->
+    <footer class="footer">
+      <p class="disclaimer">
+        ETS와 무관한 비공식 연습 도구입니다. AI 점수는 학습 참고용으로 활용해 주세요.
+      </p>
+      <div class="gemini-badge" aria-label="Powered by Gemini">
+        <svg
+          class="gemini-icon"
+          viewBox="0 0 24 24"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          aria-hidden="true"
+        >
+          <path
+            d="M12 2C12.8 7.2 16.8 11.2 22 12C16.8 12.8 12.8 16.8 12 22C11.2 16.8 7.2 12.8 2 12C7.2 11.2 11.2 7.2 12 2Z"
+            fill="currentColor"
+          />
+        </svg>
+        <span>Powered by Gemini</span>
+      </div>
+    </footer>
+  </main>
+
+  <script src="./app.js"></script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "name": "toefl-writing-coach",
+  "version": "1.0.0",
+  "description": "2026 개정 토플(TOEFL) 라이팅 AI 첨삭 웹사이트",
+  "type": "module",
+  "scripts": {
+    "dev": "vercel dev"
+  }
+}
