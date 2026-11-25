@@ -3,7 +3,7 @@
 // GEMINI_API_KEY는 반드시 Vercel 환경변수(또는 로컬 .env.local)로만 관리합니다.
 
 const DAILY_LIMIT = 10;
-const GEMINI_MODEL = 'gemini-2.5-flash';
+const GEMINI_MODEL = 'gemini-3.8-flash';
 
 // IP별 일일 사용 횟수 저장소 (서버 메모리 기반)
 // 참고: Vercel 서버리스 함수는 일정 시간 요청이 없으면 초기화(콜드 스타트)될 수 있습니다.
