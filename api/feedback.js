@@ -3,7 +3,12 @@
 // GEMINI_API_KEY는 반드시 Vercel 환경변수(또는 로컬 .env.local)로만 관리합니다.
 
 const DAILY_LIMIT = 10;
-const GEMINI_MODEL = 'gemini-3.8-flash';
+// 기본 모델이 일시적 과부하(503)일 때 자동으로 다음 모델로 폴백합니다.
+const GEMINI_MODELS = [
+  'gemini-3.8-flash',
+  'gemini-3.5-flash-lite',
+  'gemini-3.1-flash-lite',
+];
 
 // IP별 일일 사용 횟수 저장소 (서버 메모리 기반)
 // 참고: Vercel 서버리스 함수는 일정 시간 요청이 없으면 초기화(콜드 스타트)될 수 있습니다.
@@ -65,6 +70,67 @@ function checkAndConsumeRateLimit(ip) {
     remaining: DAILY_LIMIT - record.count,
     limit: DAILY_LIMIT,
   };
+}
+
+/**
+ * 일시적 API 오류로 실패한 경우 사용 횟수 1회 복구
+ */
+function refundRateLimit(ip) {
+  const today = getTodayKST();
+  const record = rateLimitStore.get(ip);
+  if (record && record.date === today && record.count > 0) {
+    record.count -= 1;
+    rateLimitStore.set(ip, record);
+  }
+}
+
+/**
+ * Gemini API 호출 (503 과부하 등 일시 오류 시 다음 모델로 자동 폴백)
+ */
+async function callGeminiWithFallback(apiKey, fullPrompt) {
+  let lastStatus = 500;
+  let lastError = '';
+
+  for (const model of GEMINI_MODELS) {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey,
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: 'user',
+              parts: [{ text: fullPrompt }],
+            },
+          ],
+          generationConfig: {
+            temperature: 0.4,
+            responseMimeType: 'application/json',
+            responseSchema: RESPONSE_SCHEMA,
+          },
+        }),
+      }
+    );
+
+    if (response.ok) {
+      return { ok: true, data: await response.json(), model };
+    }
+
+    lastStatus = response.status;
+    lastError = await response.text();
+    console.error(`Gemini API 오류 (${model}):`, lastStatus, lastError);
+
+    // 503(과부하), 429(요청 과다), 404(모델 미지원)이면 다음 폴백 모델 시도
+    if (lastStatus !== 503 && lastStatus !== 429 && lastStatus !== 404) {
+      break;
+    }
+  }
+
+  return { ok: false, status: lastStatus, error: lastError };
 }
 
 /**
@@ -215,42 +281,23 @@ export default async function handler(req, res) {
   const fullPrompt = buildPrompt(taskType, cleanPrompt, cleanEssay, wordCount);
 
   try {
-    const geminiResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': apiKey,
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              role: 'user',
-              parts: [{ text: fullPrompt }],
-            },
-          ],
-          generationConfig: {
-            temperature: 0.4,
-            responseMimeType: 'application/json',
-            responseSchema: RESPONSE_SCHEMA,
-          },
-        }),
-      }
-    );
+    const result = await callGeminiWithFallback(apiKey, fullPrompt);
 
-    if (!geminiResponse.ok) {
-      const errorDetail = await geminiResponse.text();
-      console.error('Gemini API 오류:', geminiResponse.status, errorDetail);
+    if (!result.ok) {
+      refundRateLimit(clientIP);
+      const isOverloaded = result.status === 503 || result.status === 429;
       return res.status(502).json({
-        error: 'AI 첨삭 요청 중 일시적인 오류가 발생했어요. 잠시 후 다시 시도해 주세요.',
+        error: isOverloaded
+          ? '현재 AI 서버에 요청이 몰려 있어요. 잠시 후 다시 눌러 주세요! (횟수는 차감되지 않았어요)'
+          : 'AI 첨삭 요청 중 일시적인 오류가 발생했어요. 잠시 후 다시 시도해 주세요.',
       });
     }
 
-    const data = await geminiResponse.json();
+    const data = result.data;
     const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!rawText) {
+      refundRateLimit(clientIP);
       console.error('Gemini 응답 비어 있음:', JSON.stringify(data));
       return res.status(502).json({
         error: 'AI 응답을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.',
